@@ -53,18 +53,28 @@ The statistics are tested, not assumed:
   yields `0`, not `7`. Getting this wrong silently skews every distribution,
   and most digit apps get it wrong.
 
-### One item still to verify against the live feed
+### Request format, and how it resolves itself
 
-Deriv has been migrating its WebSocket request format. Rather than guess,
-`src/deriv.js` sends an ordered list of candidate request shapes and
-automatically advances to the next if the server rejects one, remembering
-whichever succeeds. Every frame — sent, received, and rejected — appears in the
-**Connection log** panel at the bottom of the page.
+Deriv has been migrating its WebSocket request format. The Deriv API index
+states that "the symbol field is `underlying_symbol`", so that shape is sent
+first for both `ticks` and `ticks_history`, with the older string form kept as a
+fallback.
 
-So if the feed does not start, open that panel: it will show the exact rejection
-message. That is a one-line fix in `tickCandidates()`, and the log tells you
-precisely which line. This design exists because the previous version of this
-project failed silently, which made a five-minute problem take days.
+If the server rejects a shape, the client advances to the next one
+automatically. Requests are tracked **per endpoint** and errors are matched to
+the request that caused them via the `echo_req` field Deriv echoes back, so
+several in-flight requests cannot be confused with one another.
+
+Whichever format succeeds is named in the **Connection log** panel:
+
+```
+accepted: ticks: format 1 of 3 — {"ticks":{"underlying_symbol":"R_100"},"subscribe":1}
+```
+
+That line is the answer to "which format does Deriv actually want" — once it
+appears, the fallbacks can be deleted. Verified against a simulated server that
+rejects the first shape: all three endpoints resolve, and errors are attributed
+correctly when history and ticks are in flight simultaneously.
 
 ## On what this app claims
 

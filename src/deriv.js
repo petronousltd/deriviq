@@ -27,21 +27,24 @@ export const FALLBACK_SYMBOLS = [
   { symbol: '1HZ100V', display_name: 'Volatility 100 (1s) Index' },
 ];
 
+// Ordered by confidence. The Deriv API index states plainly that "the symbol
+// field is `underlying_symbol`", so that shape is tried first; the older string
+// form is kept as a fallback for endpoints that have not migrated yet.
 const tickCandidates = (symbol) => [
-  { ticks: symbol, subscribe: 1 },
   { ticks: { underlying_symbol: symbol }, subscribe: 1 },
+  { ticks: symbol, subscribe: 1 },
   { ticks: { symbol }, subscribe: 1 },
 ];
 
 const historyCandidates = (symbol) => [
   {
-    ticks_history: symbol,
+    ticks_history: { underlying_symbol: symbol },
     count: 500,
     end: 'latest',
     style: 'ticks',
   },
   {
-    ticks_history: { underlying_symbol: symbol },
+    ticks_history: symbol,
     count: 500,
     end: 'latest',
     style: 'ticks',
@@ -101,7 +104,7 @@ export class DerivFeed {
     this.ws = null;
     this.symbol = null;
     this.attempt = 0;
-    this.pending = null;
+    this.pending = new Map();
     this.closedByUser = false;
     this.retryDelay = 1000;
     this.heartbeat = null;
@@ -173,7 +176,7 @@ export class DerivFeed {
     return true;
   }
 
-  /** Sends candidate[index]; onError we advance to the next shape. */
+  /** Sends candidate[index]; on rejection we advance to the next shape. */
   request(candidates, kind, index = 0) {
     if (index >= candidates.length) {
       this.handlers.onStatus?.(
@@ -182,16 +185,43 @@ export class DerivFeed {
       );
       return;
     }
-    this.pending = { candidates, kind, index };
+    this.pending.set(kind, { candidates, index });
     this.send(candidates[index]);
   }
 
-  retryPending() {
-    if (!this.pending) return false;
-    const { candidates, kind, index } = this.pending;
-    if (index + 1 >= candidates.length) return false;
-    this.request(candidates, kind, index + 1);
+  /**
+   * Works out which in-flight request an error belongs to. Deriv echoes the
+   * original request back as `echo_req`, so the endpoint key identifies it;
+   * several requests are in flight at once and must not be confused.
+   */
+  kindOf(msg) {
+    const echo = msg.echo_req ?? {};
+    if ('ticks' in echo) return 'ticks';
+    if ('ticks_history' in echo) return 'history';
+    if ('active_symbols' in echo) return 'symbols';
+    return this.pending.size === 1 ? [...this.pending.keys()][0] : null;
+  }
+
+  retryPending(msg) {
+    const kind = this.kindOf(msg);
+    if (!kind) return false;
+    const entry = this.pending.get(kind);
+    if (!entry || entry.index + 1 >= entry.candidates.length) return false;
+    this.request(entry.candidates, kind, entry.index + 1);
     return true;
+  }
+
+  /** Records which candidate shape the server accepted, then clears it. */
+  resolvePending(kind) {
+    const entry = this.pending.get(kind);
+    if (!entry) return;
+    this.log(
+      'accepted',
+      `${kind}: format ${entry.index + 1} of ${
+        entry.candidates.length
+      } — ${JSON.stringify(entry.candidates[entry.index])}`,
+    );
+    this.pending.delete(kind);
   }
 
   startSymbol(symbol) {
@@ -213,7 +243,7 @@ export class DerivFeed {
 
     if (msg.error) {
       this.log('error', msg.error);
-      if (!this.retryPending()) {
+      if (!this.retryPending(msg)) {
         this.handlers.onStatus?.(
           'error',
           msg.error.message ?? 'Request rejected',
@@ -224,7 +254,7 @@ export class DerivFeed {
 
     const symbols = extractSymbols(msg);
     if (symbols?.length) {
-      this.pending = null;
+      this.resolvePending('symbols');
       this.log('received', `active_symbols: ${symbols.length} instruments`);
       this.handlers.onSymbols?.(symbols);
       return;
@@ -232,7 +262,7 @@ export class DerivFeed {
 
     const history = extractHistory(msg);
     if (history?.length) {
-      this.pending = null;
+      this.resolvePending('history');
       this.log('received', `history: ${history.length} ticks`);
       this.handlers.onHistory?.(history);
       return;
@@ -240,7 +270,7 @@ export class DerivFeed {
 
     const quote = extractQuote(msg);
     if (quote !== null) {
-      this.pending = null;
+      this.resolvePending('ticks');
       const tick = msg.tick ?? msg.data?.tick ?? {};
       this.handlers.onTick?.({
         quote,
