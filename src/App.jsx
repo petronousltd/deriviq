@@ -15,6 +15,13 @@ import {
   uniformityTest,
 } from './stats.js';
 import {
+  asianStats,
+  bandSurvival,
+  directionStats,
+  extremePositions,
+  monotoneRuns,
+} from './analysis.js';
+import {
   APP_ID,
   REDIRECT_URI,
   beginLogin,
@@ -45,11 +52,13 @@ export default function App() {
   const [quote, setQuote] = useState(null);
   const [pipSize, setPipSize] = useState(null);
   const [digits, setDigits] = useState([]);
+  const [prices, setPrices] = useState([]);
   const [log, setLog] = useState([]);
   const [token, setToken] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [authError, setAuthError] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
+  const [family, setFamily] = useState('updown');
   const feedRef = useRef(null);
   // History prices arrive as numbers, which drop trailing zeros; seeding digits
   // from them without the instrument's true decimal count systematically
@@ -127,6 +136,7 @@ export default function App() {
           .filter((digit) => digit !== null);
         if (pip !== null) reseededRef.current = true;
         setDigits(seed.slice(-MAX_DIGITS));
+        setPrices(prices.slice(-MAX_DIGITS));
         setQuote(prices[prices.length - 1] ?? null);
       },
       onTick: ({ quote: value, pipSize: pip }) => {
@@ -138,6 +148,11 @@ export default function App() {
         const digit = lastDigit(value, pip);
         if (digit === null) return;
         liveRef.current.push(digit);
+        setPrices((prev) => {
+          const next = prev.length >= MAX_DIGITS ? prev.slice(1) : prev.slice();
+          next.push(value);
+          return next;
+        });
         if (
           Number.isFinite(pip) &&
           !reseededRef.current &&
@@ -159,6 +174,7 @@ export default function App() {
         });
       },
       onReset: () => {
+        setPrices([]);
         historyRef.current = [];
         liveRef.current = [];
         pipRef.current = null;
@@ -192,6 +208,11 @@ export default function App() {
   const runs = useMemo(() => runsTest(digits), [digits]);
   const serial = useMemo(() => serialTest(digits), [digits]);
   const board = useMemo(() => scoreboard(digits), [digits]);
+  const dir = useMemo(() => directionStats(prices), [prices]);
+  const mono = useMemo(() => monotoneRuns(prices), [prices]);
+  const extremes = useMemo(() => extremePositions(prices), [prices]);
+  const asian = useMemo(() => asianStats(prices), [prices]);
+  const survival = useMemo(() => bandSurvival(prices), [prices]);
 
   const tape = digits.slice(-TAPE_LENGTH);
   const current = digits.length ? digits[digits.length - 1] : null;
@@ -401,6 +422,94 @@ export default function App() {
             outside it is the one signal here that would suggest genuinely
             exploitable structure.
           </p>
+        </section>
+
+        <section className="panel">
+          <h2>
+            Contract analysis
+            <span className="verdict">{prices.length} ticks</span>
+          </h2>
+          <select value={family} onChange={(e) => setFamily(e.target.value)} style={{ width: '100%', marginBottom: 12 }}>
+            <option value="updown">Up/Down \u00b7 Reset Call/Put</option>
+            <option value="onlyups">Only Ups / Only Downs</option>
+            <option value="hilo">High/Low Ticks</option>
+            <option value="asians">Asians</option>
+            <option value="range">Touch/No Touch \u00b7 In/Out \u00b7 Accumulators</option>
+            <option value="digits">Digits</option>
+          </select>
+
+          {family === 'updown' && (
+            <>
+              <div className="stat-grid">
+                <div className="stat"><b>{dir.pUp === null ? '\u2014' : `${(dir.pUp * 100).toFixed(1)}%`}</b><span>ticks up</span></div>
+                <div className="stat"><b>{dir.pUpAfterUp === null ? '\u2014' : `${(dir.pUpAfterUp * 100).toFixed(1)}%`}</b><span>up after up</span></div>
+                <div className="stat"><b>{dir.pUpAfterDown === null ? '\u2014' : `${(dir.pUpAfterDown * 100).toFixed(1)}%`}</b><span>up after down</span></div>
+                <div className="stat"><b className={dir.independent ? '' : 'flag'}>{dir.independent ? 'no' : 'yes'}</b><span>momentum</span></div>
+              </div>
+              <p className="note">If "up after up" and "up after down" match, direction carries no memory \u2014 the exact condition under which Rise/Fall and Reset contracts are fairly priced.</p>
+            </>
+          )}
+
+          {family === 'onlyups' && (
+            <>
+              <div className="lags">
+                {mono.rows.map((row) => (
+                  <div className="lag" key={row.k} style={{ gridTemplateColumns: '70px 1fr 1fr' }}>
+                    <span>{row.k} ticks</span>
+                    <span className="value" style={{ textAlign: 'left' }}>obs {(row.obsUp * 100).toFixed(1)}% up</span>
+                    <span className="value">theory {(row.expUp * 100).toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+              <p className="note">Frequency of k consecutive rises, observed vs the independence prediction p^k. Agreement means streaks appear exactly as often as chance dictates \u2014 an Only Ups entry has no better odds after any setup.</p>
+            </>
+          )}
+
+          {family === 'hilo' && (
+            <>
+              <div className="bars" style={{ height: 90 }}>
+                {extremes.hi.map((count, idx) => (
+                  <div key={idx} className="bar">
+                    <div className="fill" style={{ height: `${(count / Math.max(1, ...extremes.hi)) * 100}%` }} />
+                    <span>t{idx + 1}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="note">Where the highest tick lands inside 5-tick windows ({extremes.windows} windows). The clustering at the ends is the <strong>arcsine law</strong> \u2014 real, expected random-walk physics, and already priced into High/Low Ticks payouts. It is structure you can see but not profit from.</p>
+            </>
+          )}
+
+          {family === 'asians' && (
+            <>
+              <div className="stat-grid">
+                <div className="stat"><b>{asian.pLastAbove === null ? '\u2014' : `${(asian.pLastAbove * 100).toFixed(1)}%`}</b><span>last above mean</span></div>
+                <div className="stat"><b>{asian.windows}</b><span>windows</span></div>
+              </div>
+              <p className="note">How often the final tick finishes above the 5-tick average. Symmetric ticks keep this near 50% \u2014 the assumption Asian contracts are priced on.</p>
+            </>
+          )}
+
+          {family === 'range' && (
+            <>
+              <div className="lags">
+                {survival.rows.map((row) => (
+                  <div className="lag" key={row.k}>
+                    <span>{row.k} ticks</span>
+                    <div className="track">
+                      <div className="centre" style={{ left: '50%' }} />
+                      <div className="needle" style={{ left: `${clamp((row.p ?? 0) * 100, 1, 99)}%` }} />
+                    </div>
+                    <span className="value">{row.p === null ? '\u2014' : `${(row.p * 100).toFixed(0)}%`}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="note">Empirical probability the price stays within \u00b1{survival.band ? survival.band.toFixed(4) : '\u2014'} (3\u00d7 the median tick move) of entry for k consecutive ticks. This survival curve is what Touch/No Touch, In/Out and Accumulator payouts are built from \u2014 measured here from your live feed.</p>
+            </>
+          )}
+
+          {family === 'digits' && (
+            <p className="note">Digit contracts (Matches/Differs, Over/Under, Even/Odd) are analysed by the dedicated panels on this page: distribution, uniformity, structure tests, and the live model scoreboard above.</p>
+          )}
         </section>
 
         <section className="panel">
