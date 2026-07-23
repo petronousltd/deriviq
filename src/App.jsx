@@ -8,6 +8,9 @@ import {
   autocorrelationScan,
   calibrate,
   longestRun,
+  runsTest,
+  scoreboard,
+  serialTest,
   shannonEntropy,
   uniformityTest,
 } from './stats.js';
@@ -186,6 +189,9 @@ export default function App() {
   const lags = useMemo(() => autocorrelationScan(digits), [digits]);
   const calibration = useMemo(() => calibrate(digits), [digits]);
   const run = useMemo(() => longestRun(digits), [digits]);
+  const runs = useMemo(() => runsTest(digits), [digits]);
+  const serial = useMemo(() => serialTest(digits), [digits]);
+  const board = useMemo(() => scoreboard(digits), [digits]);
 
   const tape = digits.slice(-TAPE_LENGTH);
   const current = digits.length ? digits[digits.length - 1] : null;
@@ -394,6 +400,47 @@ export default function App() {
             Independent draws stay inside the shaded ±2/√N band. A needle
             outside it is the one signal here that would suggest genuinely
             exploitable structure.
+          </p>
+        </section>
+
+        <section className="panel">
+          <h2>
+            Structure tests
+            <span className={`verdict ${(!runs.ok || (serial.ready && !serial.ok)) ? 'flag' : ''}`}>
+              {serial.ready ? (!runs.ok || !serial.ok ? 'structure detected' : 'no structure') : 'gathering'}
+            </span>
+          </h2>
+          <div className="stat-grid">
+            <div className="stat"><b className={runs.ok ? '' : 'flag'}>{runs.z.toFixed(2)}</b><span>runs z</span></div>
+            <div className="stat"><b className={runs.ok ? '' : 'flag'}>{runs.p.toFixed(3)}</b><span>runs p</span></div>
+            <div className="stat"><b className={serial.ok ? '' : 'flag'}>{serial.chi2.toFixed(0)}</b><span>markov chi-sq df {serial.df}</span></div>
+            <div className="stat"><b className={serial.ok ? '' : 'flag'}>{serial.p < 0.001 ? serial.p.toExponential(1) : serial.p.toFixed(3)}</b><span>markov p</span></div>
+          </div>
+          <p className="note">
+            The Wald–Wolfowitz runs test catches streakiness; the Markov test checks the full 10×10 digit→next-digit transition matrix against uniformity. <strong>Any genuinely predictable dependence between digits would surface here as a red p-value.</strong> Verified against synthetic dependent data: injected structure is detected at p ≈ 0.
+          </p>
+        </section>
+
+        <section className="panel">
+          <h2>
+            Model scoreboard
+            <span className="verdict">{board.scored ? `${board.scored} scored` : 'gathering'}</span>
+          </h2>
+          <div className="lags">
+            {board.entries.map((entry) => (
+              <div className="lag" key={entry.id}>
+                <span style={{ width: 96 }}>{entry.label}</span>
+                <div className="track">
+                  <div className="band" style={{ left: '5%', width: '10%' }} />
+                  <div className="centre" style={{ left: '10%' }} />
+                  <div className={`needle ${entry.rate !== null && entry.rate > 0.13 ? 'out' : ''}`} style={{ left: `${clamp((entry.rate ?? 0) * 100, 1, 99)}%` }} />
+                </div>
+                <span className="value">{entry.rate === null ? '—' : `${(entry.rate * 100).toFixed(1)}%`}</span>
+              </div>
+            ))}
+          </div>
+          <p className="note">
+            Four models — hot digit, cold digit, an online-learned Markov predictor, and repeat-last — each forecast every next digit using only prior data, scored against what actually happened. The marker at 10% is chance. <strong>On an independent RNG all four converge there; a model staying meaningfully above it would be the first real evidence of an edge.</strong>
           </p>
         </section>
 

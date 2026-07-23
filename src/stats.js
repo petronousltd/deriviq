@@ -177,3 +177,137 @@ export function longestRun(digits) {
   }
   return best;
 }
+
+/* ---------- advanced structure tests ---------- */
+
+// Abramowitz & Stegun normal CDF approximation (max error ~7.5e-8).
+function normalCdf(x) {
+  const sign = x < 0 ? -1 : 1;
+  const ax = Math.abs(x);
+  const t = 1 / (1 + 0.2316419 * ax);
+  const d = 0.3989422804014327 * Math.exp((-ax * ax) / 2);
+  const p =
+    d *
+    t *
+    (0.31938153 +
+      t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  return sign === 1 ? 1 - p : p;
+}
+
+/**
+ * Wald–Wolfowitz runs test on the high/low split (digit >= 5). Detects
+ * streakiness or alternation that frequency counts cannot see.
+ */
+export function runsTest(digits) {
+  const n = digits.length;
+  if (n < 30) return { z: 0, p: 1, runs: 0, n, ok: true };
+  let n1 = 0;
+  let n0 = 0;
+  let runs = 1;
+  let prev = digits[0] >= 5 ? 1 : 0;
+  prev ? n1++ : n0++;
+  for (let i = 1; i < n; i++) {
+    const cur = digits[i] >= 5 ? 1 : 0;
+    cur ? n1++ : n0++;
+    if (cur !== prev) runs++;
+    prev = cur;
+  }
+  if (!n1 || !n0) return { z: 0, p: 1, runs, n, ok: true };
+  const mu = (2 * n1 * n0) / n + 1;
+  const variance = (2 * n1 * n0 * (2 * n1 * n0 - n)) / (n * n * (n - 1));
+  const z = (runs - mu) / Math.sqrt(variance);
+  const p = 2 * (1 - normalCdf(Math.abs(z)));
+  return { z, p, runs, n, ok: p >= 0.05 };
+}
+
+/**
+ * First-order Markov test: chi-square of the 10x10 digit->next-digit
+ * transition matrix against uniform rows. THIS is the test that matters for
+ * prediction: any exploitable digit dependence appears here as a low p-value.
+ */
+export function serialTest(digits) {
+  const matrix = Array.from({ length: 10 }, () => new Array(10).fill(0));
+  for (let i = 1; i < digits.length; i++) {
+    matrix[digits[i - 1]][digits[i]] += 1;
+  }
+  let chi2 = 0;
+  let usedRows = 0;
+  let pairs = 0;
+  for (let row = 0; row < 10; row++) {
+    const rowTotal = matrix[row].reduce((a, b) => a + b, 0);
+    pairs += rowTotal;
+    if (rowTotal < 20) continue; // too sparse to test
+    usedRows += 1;
+    const expected = rowTotal / 10;
+    for (let col = 0; col < 10; col++) {
+      const diff = matrix[row][col] - expected;
+      chi2 += (diff * diff) / expected;
+    }
+  }
+  const df = Math.max(usedRows * 9, 1);
+  const p = usedRows ? chiSquarePValue(chi2, df) : 1;
+  return { chi2, df, p, pairs, matrix, ok: p >= 0.05, ready: usedRows === 10 };
+}
+
+/**
+ * Live out-of-sample scoreboard. Four models predict each next digit from
+ * data available strictly beforehand, and are scored against what happened:
+ *   hot     - most frequent digit of the last `window`
+ *   cold    - least frequent digit of the last `window` ("due" fallacy)
+ *   markov  - most likely successor of the current digit, learned online
+ *   repeat  - the current digit repeats
+ * On an independent uniform feed every one converges to 10%.
+ */
+export function scoreboard(digits, window = 50) {
+  const n = digits.length;
+  const result = {
+    scored: 0,
+    baseline: 0.1,
+    entries: [
+      { id: 'hot', label: 'Hot digit', hits: 0 },
+      { id: 'cold', label: 'Cold digit', hits: 0 },
+      { id: 'markov', label: 'Markov argmax', hits: 0 },
+      { id: 'repeat', label: 'Repeat last', hits: 0 },
+    ],
+  };
+  if (n < window + 2) return finalize(result);
+
+  const winCounts = new Array(10).fill(0);
+  for (let i = 0; i < window; i++) winCounts[digits[i]] += 1;
+  const trans = Array.from({ length: 10 }, () => new Array(10).fill(0));
+  for (let i = 1; i <= window; i++) trans[digits[i - 1]][digits[i]] += 1;
+
+  for (let i = window; i < n - 1; i++) {
+    const current = digits[i];
+    const actual = digits[i + 1];
+
+    let hot = 0;
+    let cold = 0;
+    for (let d = 1; d < 10; d++) {
+      if (winCounts[d] > winCounts[hot]) hot = d;
+      if (winCounts[d] < winCounts[cold]) cold = d;
+    }
+    let markov = 0;
+    const row = trans[current];
+    for (let d = 1; d < 10; d++) if (row[d] > row[markov]) markov = d;
+
+    result.scored += 1;
+    if (actual === hot) result.entries[0].hits += 1;
+    if (actual === cold) result.entries[1].hits += 1;
+    if (actual === markov) result.entries[2].hits += 1;
+    if (actual === current) result.entries[3].hits += 1;
+
+    // advance state using only information now in the past
+    winCounts[digits[i - window]] -= 1;
+    winCounts[current] += 1;
+    trans[current][actual] += 1;
+  }
+  return finalize(result);
+
+  function finalize(r) {
+    for (const e of r.entries) {
+      e.rate = r.scored ? e.hits / r.scored : null;
+    }
+    return r;
+  }
+}
