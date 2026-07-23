@@ -78,16 +78,25 @@ function extractHistory(msg) {
   return prices.map(Number).filter(Number.isFinite);
 }
 
+const KNOWN_NAMES = Object.fromEntries(
+  FALLBACK_SYMBOLS.map((entry) => [entry.symbol, entry.display_name]),
+);
+
 function extractSymbols(msg) {
   const list = msg.active_symbols ?? msg.symbols ?? null;
   if (!Array.isArray(list)) return null;
   return list
-    .map((entry) => ({
-      symbol: entry.underlying_symbol ?? entry.symbol,
-      display_name: entry.display_name ?? entry.name ?? entry.symbol,
-      market: entry.market ?? '',
-    }))
-    .filter((entry) => entry.symbol);
+    .map((entry) => {
+      const symbol = String(entry.underlying_symbol || entry.symbol || '').trim();
+      // `||` not `??`: the server can send empty-string display names, which
+      // are present but useless, and must fall through to a known name or the
+      // symbol code itself.
+      const display_name = String(
+        entry.display_name || entry.name || KNOWN_NAMES[symbol] || symbol,
+      ).trim();
+      return { symbol, display_name, market: entry.market ?? '' };
+    })
+    .filter((entry) => entry.symbol && entry.display_name);
 }
 
 /** The last digit of a price, respecting the instrument's decimal places. */
