@@ -53,8 +53,13 @@ const historyCandidates = (symbol) => [
 
 const symbolCandidates = () => [
   { active_symbols: 'brief', product_type: 'basic' },
+  { active_symbols: 'brief' },
+  { active_symbols: 'full' },
   { active_symbols: {} },
 ];
+
+/** Requests whose failure should not surface as an app-level error. */
+const OPTIONAL_KINDS = new Set(['symbols']);
 
 /** Pulls a numeric price out of whichever response shape arrived. */
 function extractQuote(msg) {
@@ -179,6 +184,14 @@ export class DerivFeed {
   /** Sends candidate[index]; on rejection we advance to the next shape. */
   request(candidates, kind, index = 0) {
     if (index >= candidates.length) {
+      if (OPTIONAL_KINDS.has(kind)) {
+        this.log(
+          'received',
+          `${kind}: every format rejected — continuing with the built-in list`,
+        );
+        this.pending.delete(kind);
+        return;
+      }
       this.handlers.onStatus?.(
         'error',
         `Every request format for "${kind}" was rejected. See the log below.`,
@@ -244,10 +257,19 @@ export class DerivFeed {
     if (msg.error) {
       this.log('error', msg.error);
       if (!this.retryPending(msg)) {
-        this.handlers.onStatus?.(
-          'error',
-          msg.error.message ?? 'Request rejected',
-        );
+        const kind = this.kindOf(msg);
+        if (!OPTIONAL_KINDS.has(kind)) {
+          this.handlers.onStatus?.(
+            'error',
+            msg.error.message ?? 'Request rejected',
+          );
+        } else {
+          this.pending.delete(kind);
+          this.log(
+            'received',
+            `${kind}: rejected — continuing with the built-in list`,
+          );
+        }
       }
       return;
     }
