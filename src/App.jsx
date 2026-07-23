@@ -11,6 +11,16 @@ import {
   shannonEntropy,
   uniformityTest,
 } from './stats.js';
+import {
+  APP_ID,
+  REDIRECT_URI,
+  beginLogin,
+  completeLogin,
+  fetchAccounts,
+  isDemo,
+  logout,
+  storedToken,
+} from './auth.js';
 
 const MAX_DIGITS = 5000;
 const TAPE_LENGTH = 48;
@@ -33,7 +43,49 @@ export default function App() {
   const [pipSize, setPipSize] = useState(null);
   const [digits, setDigits] = useState([]);
   const [log, setLog] = useState([]);
+  const [token, setToken] = useState(null);
+  const [accounts, setAccounts] = useState([]);
+  const [authError, setAuthError] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
   const feedRef = useRef(null);
+
+  // Handles the return leg of the OAuth redirect, and restores an existing
+  // session on an ordinary page load.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setAuthBusy(true);
+      try {
+        const fresh = await completeLogin();
+        const active = fresh ?? storedToken();
+        if (cancelled || !active) return;
+        setToken(active);
+        setAccounts(await fetchAccounts(active));
+      } catch (error) {
+        if (!cancelled) setAuthError(error.message);
+      } finally {
+        if (!cancelled) setAuthBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const onLogin = async () => {
+    setAuthError('');
+    try {
+      await beginLogin();
+    } catch (error) {
+      setAuthError(error.message);
+    }
+  };
+
+  const onLogout = () => {
+    logout();
+    setToken(null);
+    setAccounts([]);
+  };
 
   const pushLog = useCallback((entry) => {
     setLog((prev) => [
@@ -136,8 +188,37 @@ export default function App() {
             {STATUS_TEXT[status] ?? status}
             {detail ? ` · ${detail}` : ''}
           </span>
+          {token ? (
+            <span className="account">
+              {accounts.length ? (
+                <>
+                  <b>{accounts[0].loginid ?? accounts[0].account_id}</b>
+                  <em>{isDemo(accounts[0]) ? 'demo' : 'real'}</em>
+                </>
+              ) : (
+                <b>signed in</b>
+              )}
+              <button type="button" onClick={onLogout}>
+                Sign out
+              </button>
+            </span>
+          ) : (
+            <button type="button" className="login" onClick={onLogin} disabled={authBusy}>
+              {authBusy ? 'Checking…' : 'Log in with Deriv'}
+            </button>
+          )}
         </div>
       </header>
+
+      {authError && (
+        <div className="auth-error" role="alert">
+          <strong>Login failed.</strong> {authError}
+          <span>
+            App ID {APP_ID} · redirect {REDIRECT_URI} — this exact URI must be
+            registered on the Deriv application.
+          </span>
+        </div>
+      )}
 
       <section className="readout">
         <div>

@@ -94,11 +94,12 @@ export async function completeLogin() {
     throw new Error('Missing PKCE verifier. Start the login again.');
   }
 
-  const response = await fetch(`${AUTH_BASE}/token`, {
+  // The exchange goes through our own /api/exchange relay because Deriv's
+  // token endpoint does not answer cross-origin browser requests directly.
+  const response = await fetch('/api/exchange', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'authorization_code',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       client_id: APP_ID,
       redirect_uri: REDIRECT_URI,
       code,
@@ -143,14 +144,23 @@ function authHeaders(token) {
   };
 }
 
-/** The accounts this user holds, demo and real. */
+/** The accounts this user holds, demo and real. Relayed to avoid CORS. */
 export async function fetchAccounts(token) {
-  const response = await fetch(`${API_BASE}/trading/v1/options/accounts`, {
-    headers: authHeaders(token),
-  });
+  let response;
+  try {
+    response = await fetch('/api/accounts', { headers: authHeaders(token) });
+  } catch (error) {
+    throw new Error(
+      `Network error reaching the account relay: ${error.message}`,
+    );
+  }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.message ?? `Could not list accounts (HTTP ${response.status})`);
+    throw new Error(
+      payload.error_description ??
+        payload.message ??
+        `Could not list accounts (HTTP ${response.status})`,
+    );
   }
   const list = payload.accounts ?? payload.data ?? payload;
   return Array.isArray(list) ? list : [];
