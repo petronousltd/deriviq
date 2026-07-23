@@ -34,6 +34,8 @@ const tickCandidates = (symbol) => [
   { ticks: { underlying_symbol: symbol }, subscribe: 1 },
   { ticks: symbol, subscribe: 1 },
   { ticks: { symbol }, subscribe: 1 },
+  { subscribe: { ticks: { underlying_symbol: symbol } } },
+  { ticks_stream: { underlying_symbol: symbol } },
 ];
 
 const historyCandidates = (symbol) => [
@@ -190,16 +192,53 @@ export class DerivFeed {
           `${kind}: every format rejected — continuing with the built-in list`,
         );
         this.pending.delete(kind);
-        return;
+      } else {
+        this.handlers.onStatus?.(
+          'error',
+          `Every known request format for "${kind}" was rejected — fetching the official schema, see the log.`,
+        );
       }
-      this.handlers.onStatus?.(
-        'error',
-        `Every request format for "${kind}" was rejected. See the log below.`,
-      );
+      this.fetchSchema(kind);
       return;
     }
     this.pending.set(kind, { candidates, index });
     this.send(candidates[index]);
+  }
+
+  /**
+   * Pulls Deriv's own documentation for the failed endpoint through the
+   * same-origin docs relay and prints the JSON examples it contains into the
+   * connection log, so the correct request shape is visible on the page itself.
+   */
+  async fetchSchema(kind) {
+    const page = { ticks: 'ticks', history: 'ticks-history', symbols: 'active-symbols' }[kind];
+    if (!page || this[`docs_${page}`]) return;
+    this[`docs_${page}`] = true;
+    try {
+      const response = await fetch(`/api/docs?page=${page}`);
+      const text = await response.text();
+      if (!response.ok) {
+        this.log('error', `docs relay for ${page}: HTTP ${response.status}`);
+        return;
+      }
+      const blocks = [...text.matchAll(/```(?:json[c5]?)?\n([\s\S]*?)```/g)]
+        .map((match) => match[1].trim())
+        .filter((block) => block.startsWith('{'))
+        .slice(0, 3);
+      if (blocks.length) {
+        this.log('received', `official ${page}.md schema examples:`);
+        for (const block of blocks) {
+          this.log('received', block.replace(/\s+/g, ' ').slice(0, 400));
+        }
+      } else {
+        this.log(
+          'received',
+          `official ${page}.md (excerpt): ${text.replace(/\s+/g, ' ').slice(0, 500)}`,
+        );
+      }
+    } catch (error) {
+      this.log('error', `docs fetch for ${page} failed: ${error.message}`);
+    }
   }
 
   /**
@@ -209,7 +248,8 @@ export class DerivFeed {
    */
   kindOf(msg) {
     const echo = msg.echo_req ?? {};
-    if ('ticks' in echo) return 'ticks';
+    if ('ticks' in echo || 'ticks_stream' in echo || 'subscribe' in echo)
+      return 'ticks';
     if ('ticks_history' in echo) return 'history';
     if ('active_symbols' in echo) return 'symbols';
     return this.pending.size === 1 ? [...this.pending.keys()][0] : null;
