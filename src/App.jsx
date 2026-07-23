@@ -14,6 +14,7 @@ import {
   shannonEntropy,
   uniformityTest,
 } from './stats.js';
+import { DemoTradingSession, STRATEGY } from './trader.js';
 import {
   asianStats,
   bandSurvival,
@@ -59,6 +60,10 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
   const [family, setFamily] = useState('updown');
+  const [botEvents, setBotEvents] = useState([]);
+  const [botState, setBotState] = useState(null);
+  const sessionRef = useRef(null);
+  const digitsRef = useRef([]);
   const feedRef = useRef(null);
   // History prices arrive as numbers, which drop trailing zeros; seeding digits
   // from them without the instrument's true decimal count systematically
@@ -172,6 +177,7 @@ export default function App() {
           next.push(digit);
           return next;
         });
+        sessionRef.current?.onDigit(digit);
       },
       onReset: () => {
         setPrices([]);
@@ -197,7 +203,35 @@ export default function App() {
     const next = event.target.value;
     setSymbol(next);
     setPipSize(null);
+    sessionRef.current?.stop('instrument changed');
+    sessionRef.current = null;
     feedRef.current?.changeSymbol(next);
+  };
+
+  const demoAccount = accounts.find((a) => isDemo(a)) ?? null;
+  const canTrade = Boolean(token && demoAccount);
+
+  const startBot = () => {
+    if (!canTrade || sessionRef.current) return;
+    setBotEvents([]);
+    try {
+      const session = new DemoTradingSession({
+        account: demoAccount,
+        token,
+        symbol,
+        onEvent: (e) => setBotEvents((prev) => [e, ...prev].slice(0, 200)),
+        onState: (st) => setBotState(st),
+      });
+      sessionRef.current = session;
+      session.start();
+    } catch (error) {
+      setBotEvents([{ time: '', kind: 'error', detail: error.message }]);
+    }
+  };
+
+  const stopBot = () => {
+    sessionRef.current?.stop('stopped by user');
+    sessionRef.current = null;
   };
 
   const uniformity = useMemo(() => uniformityTest(digits), [digits]);
@@ -509,6 +543,63 @@ export default function App() {
 
           {family === 'digits' && (
             <p className="note">Digit contracts (Matches/Differs, Over/Under, Even/Odd) are analysed by the dedicated panels on this page: distribution, uniformity, structure tests, and the live model scoreboard above.</p>
+          )}
+        </section>
+
+        <section className="panel" style={{ gridColumn: '1 / -1' }}>
+          <h2>
+            Auto trader
+            <span className={`verdict ${botState?.running ? '' : 'flag'}`}>demo only</span>
+          </h2>
+
+          <div className="auth-error" role="note" style={{ marginTop: 0, borderColor: 'var(--rule)' }}>
+            <strong>Measured before you run it.</strong> This executes the uploaded
+            \u201cMarket Wizard OverUnder\u201d strategy on your <strong>demo</strong> account via
+            Deriv\u2019s real API. Backtested on 40,000 fair-digit sessions it averages
+            <strong> \u22122.59 units per session</strong>, and its 25-tick bias filter performs
+            identically to trading blindly \u2014 because, as the Contract analysis panel shows,
+            the digits carry no exploitable structure. Real-money trading is deliberately not offered here.
+            <span>Strategy: Over/Under {STRATEGY.prediction} \u00b7 martingale \u00d7{STRATEGY.martingale} \u00b7 stop +{STRATEGY.profitTarget}/\u2212{STRATEGY.lossLimit} \u00b7 max stake {STRATEGY.maxStake}</span>
+          </div>
+
+          {!token && <p className="note">Log in with Deriv to enable demo auto-trading.</p>}
+          {token && !demoAccount && <p className="note">No demo (VRTC) account found on this login. Auto-trading requires a demo account.</p>}
+
+          {canTrade && (
+            <>
+              <div className="stat-grid" style={{ marginTop: 16 }}>
+                <div className="stat"><b className={botState && botState.profit < 0 ? 'flag' : ''}>{botState ? botState.profit.toFixed(2) : '0.00'}</b><span>demo P&L</span></div>
+                <div className="stat"><b>{botState ? botState.trades : 0}</b><span>trades</span></div>
+                <div className="stat"><b>{botState && botState.trades ? `${((botState.wins / botState.trades) * 100).toFixed(0)}%` : '\u2014'}</b><span>win rate</span></div>
+                <div className="stat"><b>{botState ? botState.stake.toFixed(2) : STRATEGY.initialStake.toFixed(2)}</b><span>next stake</span></div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                {!botState?.running ? (
+                  <button type="button" className="login" onClick={startBot}>
+                    Start on demo ({demoAccount.loginid ?? demoAccount.account_id})
+                  </button>
+                ) : (
+                  <button type="button" className="login" style={{ background: 'var(--alert)', borderColor: 'var(--alert)' }} onClick={stopBot}>
+                    Stop
+                  </button>
+                )}
+              </div>
+
+              {botState?.stopped && <p className="note"><strong>Session ended:</strong> {botState.stopped}. This is the strategy\u2019s designed stop behaviour \u2014 note whether P&L above is the +{STRATEGY.profitTarget} target or the \u2212{STRATEGY.lossLimit} limit, and how often each occurs across runs.</p>}
+
+              {botEvents.length > 0 && (
+                <div className="log" style={{ maxHeight: 220, marginTop: 12, border: '1px solid var(--grid)', borderRadius: 'var(--radius)' }}>
+                  {botEvents.map((e, i) => (
+                    <div key={i}>
+                      <time>{e.time}</time>
+                      <span className={`tag ${e.kind === 'error' ? 'error' : ''}`}>{e.kind}</span>
+                      <span>{typeof e.detail === 'string' ? e.detail : JSON.stringify(e.detail)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </section>
 
