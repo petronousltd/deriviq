@@ -28,6 +28,7 @@ import {
   beginLogin,
   completeLogin,
   fetchAccounts,
+  accountSummary,
   isDemo,
   logout,
   storedToken,
@@ -563,7 +564,19 @@ export default function App() {
           </div>
 
           {!token && <p className="note">Log in with Deriv to enable demo auto-trading.</p>}
-          {token && !demoAccount && <p className="note">No demo (VRTC) account found on this login. Auto-trading requires a demo account.</p>}
+          {token && !demoAccount && (
+            <>
+              <p className="note">
+                <strong>No demo account found on this login.</strong> Deriv returned {accounts.length} account{accounts.length === 1 ? '' : 's'}, shown raw below so we can see exactly what the API sends. If none is your demo: open app.deriv.com, use the account switcher (top right), select the <strong>Demo</strong> tab — Deriv creates the VRTC demo account there if it doesn’t exist yet — then sign out and back in here.
+              </p>
+              <div className="log" style={{ maxHeight: 140, marginTop: 10, border: '1px solid var(--grid)', borderRadius: 'var(--radius)' }}>
+                {accounts.length === 0 && <div>Account list was empty.</div>}
+                {accounts.map((a, i) => (
+                  <div key={i}><span className="tag">acct {i + 1}</span><span>{accountSummary(a)}</span></div>
+                ))}
+              </div>
+            </>
+          )}
 
           {canTrade && (
             <>

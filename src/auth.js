@@ -188,10 +188,27 @@ export async function openTradingSocketUrl(token, accountId) {
 
 /** True when the account is a demo/virtual one. Used to gate real-money trading. */
 export function isDemo(account) {
-  const id = String(account?.loginid ?? account?.account_id ?? '');
-  return (
-    account?.is_virtual === true ||
-    account?.account_type === 'demo' ||
-    /^(VR|VRT|VRTC)/i.test(id)
+  const id = String(
+    account?.loginid ?? account?.account_id ?? account?.id ?? '',
   );
+  const type = String(
+    account?.account_type ?? account?.type ?? account?.account_category ?? '',
+  ).toLowerCase();
+  return (
+    Boolean(account?.is_virtual) ||          // true, 1, '1'
+    account?.demo === true ||
+    type === 'demo' ||
+    type === 'virtual' ||
+    /^VR/i.test(id)
+  );
+}
+
+/** Compact diagnostic view of an account object for on-screen debugging. */
+export function accountSummary(account) {
+  const keep = ['loginid', 'account_id', 'id', 'is_virtual', 'account_type', 'type', 'account_category', 'currency', 'demo'];
+  const out = {};
+  for (const key of keep) {
+    if (account?.[key] !== undefined) out[key] = account[key];
+  }
+  return JSON.stringify(out);
 }
