@@ -48,6 +48,14 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
   const feedRef = useRef(null);
+  // History prices arrive as numbers, which drop trailing zeros; seeding digits
+  // from them without the instrument's true decimal count systematically
+  // undercounts digit 0. Keep the raw prices and re-derive the seed once the
+  // first live tick reveals the pip size.
+  const historyRef = useRef([]);
+  const liveRef = useRef([]);
+  const pipRef = useRef(null);
+  const reseededRef = useRef(false);
 
   // Handles the return leg of the OAuth redirect, and restores an existing
   // session on an ordinary page load.
@@ -107,17 +115,40 @@ export default function App() {
         if (volatility.length) setSymbols(volatility);
       },
       onHistory: (prices) => {
+        historyRef.current = prices;
+        liveRef.current = [];
+        reseededRef.current = false;
+        const pip = pipRef.current;
         const seed = prices
-          .map((price) => lastDigit(price, undefined))
+          .map((price) => lastDigit(price, pip ?? undefined))
           .filter((digit) => digit !== null);
+        if (pip !== null) reseededRef.current = true;
         setDigits(seed.slice(-MAX_DIGITS));
         setQuote(prices[prices.length - 1] ?? null);
       },
       onTick: ({ quote: value, pipSize: pip }) => {
         setQuote(value);
-        if (Number.isFinite(pip)) setPipSize(pip);
+        if (Number.isFinite(pip)) {
+          setPipSize(pip);
+          pipRef.current = pip;
+        }
         const digit = lastDigit(value, pip);
         if (digit === null) return;
+        liveRef.current.push(digit);
+        if (
+          Number.isFinite(pip) &&
+          !reseededRef.current &&
+          historyRef.current.length
+        ) {
+          // First tick with a known pip size: rebuild the seed correctly so
+          // trailing-zero prices count as digit 0 rather than being skewed.
+          reseededRef.current = true;
+          const seed = historyRef.current
+            .map((price) => lastDigit(price, pip))
+            .filter((d) => d !== null);
+          setDigits([...seed, ...liveRef.current].slice(-MAX_DIGITS));
+          return;
+        }
         setDigits((prev) => {
           const next = prev.length >= MAX_DIGITS ? prev.slice(1) : prev.slice();
           next.push(digit);
@@ -125,6 +156,10 @@ export default function App() {
         });
       },
       onReset: () => {
+        historyRef.current = [];
+        liveRef.current = [];
+        pipRef.current = null;
+        reseededRef.current = false;
         setDigits([]);
         setQuote(null);
       },
