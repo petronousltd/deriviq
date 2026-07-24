@@ -145,3 +145,99 @@ export function bandSurvival(prices, ks = [1, 2, 3, 5, 8, 13], bandMult = 3) {
     rows: rows.map((r) => ({ k: r.k, p: r.windows ? r.survived / r.windows : null })),
   };
 }
+
+/**
+ * Multipliers and Turbos. A multiplier of M is stopped out when the price
+ * moves against the position by 1/M of the entry price. This measures how
+ * often that actually happens within k ticks, from the live series.
+ */
+export function multiplierStops(prices, multipliers = [50, 100, 200, 400], horizon = 60) {
+  const n = prices.length;
+  if (n < horizon + 50) return { rows: [], horizon, samples: 0 };
+  const rows = multipliers.map((m) => {
+    const threshold = 1 / m;
+    let windows = 0;
+    let stopped = 0;
+    let ticksToStop = [];
+    for (let i = 0; i + horizon < n; i += 1) {
+      const entry = prices[i];
+      windows += 1;
+      for (let j = 1; j <= horizon; j++) {
+        // long position: adverse move is downward
+        if ((entry - prices[i + j]) / entry >= threshold) {
+          stopped += 1;
+          ticksToStop.push(j);
+          break;
+        }
+      }
+    }
+    ticksToStop.sort((a, b) => a - b);
+    return {
+      multiplier: m,
+      movePercent: threshold * 100,
+      pStopped: windows ? stopped / windows : null,
+      medianTicks: ticksToStop.length
+        ? ticksToStop[Math.floor(ticksToStop.length / 2)]
+        : null,
+    };
+  });
+  return { rows, horizon, samples: n };
+}
+
+/** Matches/Differs and Even/Odd, observed against their fixed baselines. */
+export function digitContracts(digits) {
+  const n = digits.length;
+  const counts = new Array(10).fill(0);
+  let even = 0;
+  for (const d of digits) {
+    counts[d] += 1;
+    if (d % 2 === 0) even += 1;
+  }
+  return {
+    n,
+    even: n ? even / n : null,
+    odd: n ? 1 - even / n : null,
+    matches: counts.map((count, digit) => ({
+      digit,
+      observed: n ? count / n : null,
+      theory: 0.1,
+      differsObserved: n ? 1 - count / n : null,
+      differsTheory: 0.9,
+    })),
+  };
+}
+
+/**
+ * Higher/Lower and Vanillas. Probability the price finishes above a barrier
+ * set d median tick-moves away from entry, after k ticks.
+ */
+export function barrierOutcomes(prices, distances = [0, 1, 2, 3], horizon = 20) {
+  const n = prices.length;
+  if (n < horizon + 100) return { rows: [], horizon, unit: null };
+  const moves = [];
+  for (let i = 1; i < n; i++) moves.push(Math.abs(prices[i] - prices[i - 1]));
+  moves.sort((a, b) => a - b);
+  const unit = moves[Math.floor(moves.length / 2)] || 0;
+  if (!unit) return { rows: [], horizon, unit: 0 };
+
+  const rows = distances.map((d) => {
+    const offset = unit * d;
+    let windows = 0;
+    let above = 0;
+    let below = 0;
+    for (let i = 0; i + horizon < n; i += 1) {
+      const entry = prices[i];
+      const end = prices[i + horizon];
+      windows += 1;
+      if (end > entry + offset) above += 1;
+      if (end < entry - offset) below += 1;
+    }
+    return {
+      distance: d,
+      offset,
+      pAbove: windows ? above / windows : null,
+      pBelow: windows ? below / windows : null,
+    };
+  });
+  return { rows, horizon, unit };
+}

@@ -23,6 +23,9 @@ import {
   directionStats,
   extremePositions,
   monotoneRuns,
+  multiplierStops,
+  digitContracts,
+  barrierOutcomes,
 } from './analysis.js';
 import {
   APP_ID,
@@ -288,6 +291,9 @@ export default function App() {
   const extremes = useMemo(() => extremePositions(prices), [prices]);
   const asian = useMemo(() => asianStats(prices), [prices]);
   const survival = useMemo(() => bandSurvival(prices), [prices]);
+  const mult = useMemo(() => multiplierStops(prices), [prices]);
+  const digitContract = useMemo(() => digitContracts(digits), [digits]);
+  const barriers = useMemo(() => barrierOutcomes(prices), [prices]);
 
   const tape = digits.slice(-TAPE_LENGTH);
   const current = digits.length ? digits[digits.length - 1] : null;
@@ -513,6 +519,9 @@ export default function App() {
             <option value="hilo">High/Low Ticks</option>
             <option value="asians">Asians</option>
             <option value="range">Touch/No Touch · In/Out · Accumulators</option>
+            <option value="mult">Multipliers · Turbos</option>
+            <option value="matches">Matches/Differs · Even/Odd</option>
+            <option value="barrier">Higher/Lower · Vanillas</option>
             <option value="digits">Digits</option>
           </select>
 
@@ -582,6 +591,65 @@ export default function App() {
                 ))}
               </div>
               <p className="note">Empirical probability the price stays within ±{survival.band ? survival.band.toFixed(4) : '—'} (3× the median tick move) of entry for k consecutive ticks. This survival curve is what Touch/No Touch, In/Out and Accumulator payouts are built from — measured here from your live feed.</p>
+            </>
+          )}
+
+          {family === 'mult' && (
+            <>
+              <div className="lags">
+                {mult.rows.map((row) => (
+                  <div className="lag" key={row.multiplier} style={{ gridTemplateColumns: '68px 1fr 1fr 1fr' }}>
+                    <span>×{row.multiplier}</span>
+                    <span className="value" style={{ textAlign: 'left' }}>{row.movePercent.toFixed(2)}% move</span>
+                    <span className="value" style={{ textAlign: 'left' }}>stopped {row.pStopped === null ? '—' : `${(row.pStopped * 100).toFixed(1)}%`}</span>
+                    <span className="value">{row.medianTicks === null ? '—' : `${row.medianTicks} ticks`}</span>
+                  </div>
+                ))}
+                {mult.rows.length === 0 && <p className="note">Gathering ticks.</p>}
+              </div>
+              <p className="note">
+                A multiplier of ×M is stopped out when price moves against you by 1/M. Measured from your live feed: how often that happens within {mult.horizon} ticks, and the median time to it. <strong>Higher multipliers do not increase expected return — they compress the same expectation into a shorter, more violent horizon.</strong>
+              </p>
+            </>
+          )}
+
+          {family === 'matches' && (
+            <>
+              <div className="stat-grid">
+                <div className="stat"><b>{digitContract.even === null ? '—' : `${(digitContract.even * 100).toFixed(1)}%`}</b><span>even / 50.0%</span></div>
+                <div className="stat"><b>{digitContract.odd === null ? '—' : `${(digitContract.odd * 100).toFixed(1)}%`}</b><span>odd / 50.0%</span></div>
+                <div className="stat"><b>{digitContract.n}</b><span>sample</span></div>
+              </div>
+              <div className="bars" style={{ marginTop: 14, height: 100 }}>
+                {digitContract.matches.map((row) => (
+                  <div key={row.digit} className="bar">
+                    <div className="fill" style={{ height: `${Math.min(100, (row.observed ?? 0) * 700)}%` }} />
+                    <span>{row.digit}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="expected-line">Matches pays on one digit in ten; every bar is measured against that same 10%</p>
+              <p className="note">
+                Matches wins at 10% and Differs at 90%, fixed by the contract. Even/Odd sits at 50%. <strong>These are not estimates that drift — they are the definition of the contract, and the observed bars converge onto them.</strong>
+              </p>
+            </>
+          )}
+
+          {family === 'barrier' && (
+            <>
+              <div className="lags">
+                {barriers.rows.map((row) => (
+                  <div className="lag" key={row.distance} style={{ gridTemplateColumns: '92px 1fr 1fr' }}>
+                    <span>{row.distance === 0 ? 'at entry' : `${row.distance}× median`}</span>
+                    <span className="value" style={{ textAlign: 'left' }}>above {row.pAbove === null ? '—' : `${(row.pAbove * 100).toFixed(1)}%`}</span>
+                    <span className="value">below {row.pBelow === null ? '—' : `${(row.pBelow * 100).toFixed(1)}%`}</span>
+                  </div>
+                ))}
+                {barriers.rows.length === 0 && <p className="note">Gathering ticks.</p>}
+              </div>
+              <p className="note">
+                Probability of finishing above or below a barrier set that many median tick-moves from entry, after {barriers.horizon} ticks. <strong>Above and below stay symmetric, which is what a driftless series looks like</strong> — the further the barrier, the lower both sides, and the payout rises to match exactly that.
+              </p>
             </>
           )}
 
