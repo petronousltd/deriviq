@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#f0f1ec"/>
+  <g fill="none" stroke="#d9dcd2" stroke-width="2">
+    <path d="M0 128h512M0 256h512M0 384h512M128 0v512M256 0v512M384 0v512"/>
+  </g>
+  <rect x="96" y="300" width="46" height="86" fill="#6f8b9c"/>
+  <rect x="158" y="268" width="46" height="118" fill="#6f8b9c"/>
+  <rect x="220" y="292" width="46" height="94" fill="#2e4a5c"/>
+  <rect x="282" y="276" width="46" height="110" fill="#6f8b9c"/>
+  <rect x="344" y="304" width="46" height="82" fill="#6f8b9c"/>
+  <path d="M80 246h352" stroke="#bf3d26" stroke-width="6" stroke-dasharray="14 10"/>
+  <text x="256" y="180" font-family="'Space Grotesk',system-ui,sans-serif" font-size="120" font-weight="700" fill="#14191c" text-anchor="middle">DIQ</text>
+</svg>

@@ -15,6 +15,7 @@ import {
   uniformityTest,
 } from './stats.js';
 import { DemoTradingSession, STRATEGY } from './trader.js';
+import { MarketScanner } from './scanner.js';
 import {
   asianStats,
   bandSurvival,
@@ -63,6 +64,10 @@ export default function App() {
   const [family, setFamily] = useState('updown');
   const [botEvents, setBotEvents] = useState([]);
   const [botState, setBotState] = useState(null);
+  const [scan, setScan] = useState(null);
+  const [scanStatus, setScanStatus] = useState('idle');
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const scannerRef = useRef(null);
   const sessionRef = useRef(null);
   const digitsRef = useRef([]);
   const feedRef = useRef(null);
@@ -111,6 +116,40 @@ export default function App() {
     logout();
     setToken(null);
     setAccounts([]);
+  };
+
+  useEffect(() => {
+    const handler = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  useEffect(() => () => scannerRef.current?.stop(), []);
+
+  const toggleScan = () => {
+    if (scannerRef.current) {
+      scannerRef.current.stop();
+      scannerRef.current = null;
+      setScanStatus('idle');
+      return;
+    }
+    const scanner = new MarketScanner({
+      symbols: symbols.map((entry) => entry.symbol),
+      onUpdate: setScan,
+      onStatus: (state) => setScanStatus(state),
+    });
+    scannerRef.current = scanner;
+    scanner.start();
+  };
+
+  const onInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    await installPrompt.userChoice;
+    setInstallPrompt(null);
   };
 
   const pushLog = useCallback((entry) => {
@@ -285,6 +324,9 @@ export default function App() {
             {STATUS_TEXT[status] ?? status}
             {detail ? ` · ${detail}` : ''}
           </span>
+          {installPrompt && (
+            <button type="button" className="login" onClick={onInstall}>Install app</button>
+          )}
           {token ? (
             <span className="account">
               {accounts.length ? (
@@ -616,6 +658,47 @@ export default function App() {
           )}
         </section>
 
+        <section className="panel" style={{ gridColumn: '1 / -1' }}>
+          <h2>
+            Market scanner
+            <span className={`verdict ${scan?.rows?.some((r) => r.flagged) ? 'flag' : ''}`}>
+              {scanStatus === 'scanning' ? `${symbols.length} markets live` : scanStatus}
+            </span>
+          </h2>
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            <button type="button" className="login" onClick={toggleScan}>
+              {scannerRef.current ? 'Stop scan' : 'Scan all markets'}
+            </button>
+          </div>
+
+          {scan?.rows?.length ? (
+            <div className="lags">
+              {scan.rows.map((row) => (
+                <div className="lag" key={row.symbol} style={{ gridTemplateColumns: '132px 68px 1fr 1fr 1fr' }}>
+                  <span style={{ color: 'var(--ink)' }}>{nameFor(symbols, row.symbol)}</span>
+                  <span>n {row.n}</span>
+                  <span className={`value ${row.flagged ? 'out' : ''}`} style={{ textAlign: 'left' }}>
+                    uniform {fmtP(row.uniformP)}
+                  </span>
+                  <span className={`value ${row.flagged ? 'out' : ''}`} style={{ textAlign: 'left' }}>
+                    runs {fmtP(row.runsP)}
+                  </span>
+                  <span className={`value ${row.flagged ? 'out' : ''}`} style={{ textAlign: 'left' }}>
+                    markov {row.markovP === null ? '\u2014' : fmtP(row.markovP)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="note">Not scanning. Starting the scan subscribes to every volatility index at once and runs the full randomness battery on each in parallel.</p>
+          )}
+
+          <p className="note">
+            Every market is tested for digit uniformity, streakiness and digit-to-digit dependence, then ranked worst-first. <strong>A market is only flagged if it beats a Bonferroni-corrected threshold of p &lt; {scan ? (scan.alpha).toFixed(4) : '0.0050'}</strong> \u2014 scanning {symbols.length} markets at once means raw p &lt; 0.05 readings appear constantly by pure chance, and treating those as \u201csignals\u201d is exactly how a scanner manufactures confidence it hasn\u2019t earned. Verified against injected dependence: the rigged market ranks first and is flagged, while fair markets showing raw p &lt; 0.05 correctly are not.
+          </p>
+        </section>
+
         <section className="panel">
           <h2>
             Structure tests
@@ -732,6 +815,15 @@ export default function App() {
       </footer>
     </div>
   );
+}
+
+function fmtP(p) {
+  if (!Number.isFinite(p)) return '\u2014';
+  return p < 0.001 ? p.toExponential(1) : p.toFixed(3);
+}
+
+function nameFor(list, symbol) {
+  return list.find((entry) => entry.symbol === symbol)?.display_name ?? symbol;
 }
 
 function clamp(value, min, max) {
