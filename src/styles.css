@@ -554,3 +554,112 @@ summary {
     transition: none !important;
   }
 }
+
+/* ---------- session ---------- */
+
+button.login,
+.account button {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: var(--radius);
+  padding: 9px 13px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.account button {
+  background: transparent;
+  color: var(--ink-soft);
+  border-color: var(--rule);
+  padding: 5px 9px;
+}
+
+button.login:hover {
+  background: var(--signal);
+  border-color: var(--signal);
+}
+
+.account {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.account b {
+  font-weight: 500;
+}
+
+.account em {
+  font-style: normal;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 9px;
+  padding: 2px 6px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--ink-soft);
+}
+
+.auth-error {
+  margin-top: calc(var(--step) * 2);
+  border: 1px solid var(--alert);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: calc(var(--step) * 1.5) calc(var(--step) * 2);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.auth-error strong {
+  color: var(--alert);
+}
+
+.auth-error span {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--ink-soft);
+  word-break: break-all;
+}
+
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: calc(var(--step) * 2); }
+.tab { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; padding: 7px 11px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); color: var(--ink-soft); }
+.tab.active { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
+.chart { width: 100%; height: auto; display: block; border: 1px solid var(--grid); border-radius: var(--radius); background: var(--paper-sunk); }
+.chart-scale { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: var(--ink-soft); margin-top: 4px; }
+
+.heat { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+.cell { border: 1px solid var(--grid); border-radius: var(--radius); padding: 8px 4px; text-align: center; font-family: var(--font-mono); }
+.cell.hot { border-color: var(--alert); border-width: 2px; }
+.cell b { display: block; font-size: 15px; color: var(--ink); }
+.cell span { display: block; font-size: 10px; color: var(--ink-soft); }
+.cell em { display: block; font-style: normal; font-size: 9px; color: var(--signal-soft); }
+
+.barrier-row { display: flex; align-items: center; gap: 10px; margin-top: calc(var(--step) * 2); }
+.barrier-row select { min-width: 80px; }
+
+.inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: var(--step); }
+.inputs label { display: flex; flex-direction: column; gap: 5px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
+.inputs input { font-family: var(--font-mono); font-size: 14px; color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: var(--radius); padding: 8px 10px; width: 100%; }
+
+.ladder { margin-top: calc(var(--step) * 2); border: 1px solid var(--grid); border-radius: var(--radius); overflow: hidden; }
+.ladder-head, .ladder-row { display: grid; grid-template-columns: 52px 1fr 1fr 1fr; font-family: var(--font-mono); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.ladder-head { background: var(--paper-sunk); color: var(--ink-soft); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; }
+.ladder-head span, .ladder-row span { padding: 7px 10px; text-align: right; }
+.ladder-head span:first-child, .ladder-row span:first-child { text-align: left; }
+.ladder-row { border-top: 1px dotted var(--grid); color: var(--ink); }
+.ladder-row.over { color: var(--alert); background: rgba(191, 61, 38, 0.05); }
+
+@media (max-width: 560px) {
+  .heat { grid-template-columns: repeat(5, 1fr); }
+}

@@ -16,6 +16,7 @@ import {
 } from './stats.js';
 import { DemoTradingSession, STRATEGY } from './trader.js';
 import { MarketScanner } from './scanner.js';
+import Tools from './Tools.jsx';
 import {
   asianStats,
   bandSurvival,
@@ -657,6 +658,14 @@ export default function App() {
             </>
           )}
         </section>
+
+        <Tools
+          digits={digits}
+          prices={prices}
+          pipSize={pipSize}
+          accounts={accounts}
+          token={token}
+        />
 
         <section className="panel" style={{ gridColumn: '1 / -1' }}>
           <h2>
