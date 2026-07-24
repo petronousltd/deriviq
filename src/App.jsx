@@ -507,23 +507,23 @@ export default function App() {
             <span className="verdict">{prices.length} ticks</span>
           </h2>
           <select value={family} onChange={(e) => setFamily(e.target.value)} style={{ width: '100%', marginBottom: 12 }}>
-            <option value="updown">Up/Down \u00b7 Reset Call/Put</option>
+            <option value="updown">Up/Down · Reset Call/Put</option>
             <option value="onlyups">Only Ups / Only Downs</option>
             <option value="hilo">High/Low Ticks</option>
             <option value="asians">Asians</option>
-            <option value="range">Touch/No Touch \u00b7 In/Out \u00b7 Accumulators</option>
+            <option value="range">Touch/No Touch · In/Out · Accumulators</option>
             <option value="digits">Digits</option>
           </select>
 
           {family === 'updown' && (
             <>
               <div className="stat-grid">
-                <div className="stat"><b>{dir.pUp === null ? '\u2014' : `${(dir.pUp * 100).toFixed(1)}%`}</b><span>ticks up</span></div>
-                <div className="stat"><b>{dir.pUpAfterUp === null ? '\u2014' : `${(dir.pUpAfterUp * 100).toFixed(1)}%`}</b><span>up after up</span></div>
-                <div className="stat"><b>{dir.pUpAfterDown === null ? '\u2014' : `${(dir.pUpAfterDown * 100).toFixed(1)}%`}</b><span>up after down</span></div>
+                <div className="stat"><b>{dir.pUp === null ? '—' : `${(dir.pUp * 100).toFixed(1)}%`}</b><span>ticks up</span></div>
+                <div className="stat"><b>{dir.pUpAfterUp === null ? '—' : `${(dir.pUpAfterUp * 100).toFixed(1)}%`}</b><span>up after up</span></div>
+                <div className="stat"><b>{dir.pUpAfterDown === null ? '—' : `${(dir.pUpAfterDown * 100).toFixed(1)}%`}</b><span>up after down</span></div>
                 <div className="stat"><b className={dir.independent ? '' : 'flag'}>{dir.independent ? 'no' : 'yes'}</b><span>momentum</span></div>
               </div>
-              <p className="note">If "up after up" and "up after down" match, direction carries no memory \u2014 the exact condition under which Rise/Fall and Reset contracts are fairly priced.</p>
+              <p className="note">If "up after up" and "up after down" match, direction carries no memory — the exact condition under which Rise/Fall and Reset contracts are fairly priced.</p>
             </>
           )}
 
@@ -538,7 +538,7 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              <p className="note">Frequency of k consecutive rises, observed vs the independence prediction p^k. Agreement means streaks appear exactly as often as chance dictates \u2014 an Only Ups entry has no better odds after any setup.</p>
+              <p className="note">Frequency of k consecutive rises, observed vs the independence prediction p^k. Agreement means streaks appear exactly as often as chance dictates — an Only Ups entry has no better odds after any setup.</p>
             </>
           )}
 
@@ -552,17 +552,17 @@ export default function App() {
                   </div>
                 ))}
               </div>
-              <p className="note">Where the highest tick lands inside 5-tick windows ({extremes.windows} windows). The clustering at the ends is the <strong>arcsine law</strong> \u2014 real, expected random-walk physics, and already priced into High/Low Ticks payouts. It is structure you can see but not profit from.</p>
+              <p className="note">Where the highest tick lands inside 5-tick windows ({extremes.windows} windows). The clustering at the ends is the <strong>arcsine law</strong> — real, expected random-walk physics, and already priced into High/Low Ticks payouts. It is structure you can see but not profit from.</p>
             </>
           )}
 
           {family === 'asians' && (
             <>
               <div className="stat-grid">
-                <div className="stat"><b>{asian.pLastAbove === null ? '\u2014' : `${(asian.pLastAbove * 100).toFixed(1)}%`}</b><span>last above mean</span></div>
+                <div className="stat"><b>{asian.pLastAbove === null ? '—' : `${(asian.pLastAbove * 100).toFixed(1)}%`}</b><span>last above mean</span></div>
                 <div className="stat"><b>{asian.windows}</b><span>windows</span></div>
               </div>
-              <p className="note">How often the final tick finishes above the 5-tick average. Symmetric ticks keep this near 50% \u2014 the assumption Asian contracts are priced on.</p>
+              <p className="note">How often the final tick finishes above the 5-tick average. Symmetric ticks keep this near 50% — the assumption Asian contracts are priced on.</p>
             </>
           )}
 
@@ -576,11 +576,11 @@ export default function App() {
                       <div className="centre" style={{ left: '50%' }} />
                       <div className="needle" style={{ left: `${clamp((row.p ?? 0) * 100, 1, 99)}%` }} />
                     </div>
-                    <span className="value">{row.p === null ? '\u2014' : `${(row.p * 100).toFixed(0)}%`}</span>
+                    <span className="value">{row.p === null ? '—' : `${(row.p * 100).toFixed(0)}%`}</span>
                   </div>
                 ))}
               </div>
-              <p className="note">Empirical probability the price stays within \u00b1{survival.band ? survival.band.toFixed(4) : '\u2014'} (3\u00d7 the median tick move) of entry for k consecutive ticks. This survival curve is what Touch/No Touch, In/Out and Accumulator payouts are built from \u2014 measured here from your live feed.</p>
+              <p className="note">Empirical probability the price stays within ±{survival.band ? survival.band.toFixed(4) : '—'} (3× the median tick move) of entry for k consecutive ticks. This survival curve is what Touch/No Touch, In/Out and Accumulator payouts are built from — measured here from your live feed.</p>
             </>
           )}
 
@@ -597,12 +597,12 @@ export default function App() {
 
           <div className="auth-error" role="note" style={{ marginTop: 0, borderColor: 'var(--rule)' }}>
             <strong>Measured before you run it.</strong> This executes the uploaded
-            \u201cMarket Wizard OverUnder\u201d strategy on your <strong>demo</strong> account via
-            Deriv\u2019s real API. Backtested on 40,000 fair-digit sessions it averages
-            <strong> \u22122.59 units per session</strong>, and its 25-tick bias filter performs
-            identically to trading blindly \u2014 because, as the Contract analysis panel shows,
+            “Market Wizard OverUnder” strategy on your <strong>demo</strong> account via
+            Deriv’s real API. Backtested on 40,000 fair-digit sessions it averages
+            <strong> −2.59 units per session</strong>, and its 25-tick bias filter performs
+            identically to trading blindly — because, as the Contract analysis panel shows,
             the digits carry no exploitable structure. Real-money trading is deliberately not offered here.
-            <span>Strategy: Over/Under {STRATEGY.prediction} \u00b7 martingale \u00d7{STRATEGY.martingale} \u00b7 stop +{STRATEGY.profitTarget}/\u2212{STRATEGY.lossLimit} \u00b7 max stake {STRATEGY.maxStake}</span>
+            <span>Strategy: Over/Under {STRATEGY.prediction} · martingale ×{STRATEGY.martingale} · stop +{STRATEGY.profitTarget}/−{STRATEGY.lossLimit} · max stake {STRATEGY.maxStake}</span>
           </div>
 
           {!token && <p className="note">Log in with Deriv to enable demo auto-trading.</p>}
@@ -625,7 +625,7 @@ export default function App() {
               <div className="stat-grid" style={{ marginTop: 16 }}>
                 <div className="stat"><b className={botState && botState.profit < 0 ? 'flag' : ''}>{botState ? botState.profit.toFixed(2) : '0.00'}</b><span>demo P&L</span></div>
                 <div className="stat"><b>{botState ? botState.trades : 0}</b><span>trades</span></div>
-                <div className="stat"><b>{botState && botState.trades ? `${((botState.wins / botState.trades) * 100).toFixed(0)}%` : '\u2014'}</b><span>win rate</span></div>
+                <div className="stat"><b>{botState && botState.trades ? `${((botState.wins / botState.trades) * 100).toFixed(0)}%` : '—'}</b><span>win rate</span></div>
                 <div className="stat"><b>{botState ? botState.stake.toFixed(2) : STRATEGY.initialStake.toFixed(2)}</b><span>next stake</span></div>
               </div>
 
@@ -641,7 +641,7 @@ export default function App() {
                 )}
               </div>
 
-              {botState?.stopped && <p className="note"><strong>Session ended:</strong> {botState.stopped}. This is the strategy\u2019s designed stop behaviour \u2014 note whether P&L above is the +{STRATEGY.profitTarget} target or the \u2212{STRATEGY.lossLimit} limit, and how often each occurs across runs.</p>}
+              {botState?.stopped && <p className="note"><strong>Session ended:</strong> {botState.stopped}. This is the strategy’s designed stop behaviour — note whether P&L above is the +{STRATEGY.profitTarget} target or the −{STRATEGY.lossLimit} limit, and how often each occurs across runs.</p>}
 
               {botEvents.length > 0 && (
                 <div className="log" style={{ maxHeight: 220, marginTop: 12, border: '1px solid var(--grid)', borderRadius: 'var(--radius)' }}>
@@ -685,7 +685,7 @@ export default function App() {
                     runs {fmtP(row.runsP)}
                   </span>
                   <span className={`value ${row.flagged ? 'out' : ''}`} style={{ textAlign: 'left' }}>
-                    markov {row.markovP === null ? '\u2014' : fmtP(row.markovP)}
+                    markov {row.markovP === null ? '—' : fmtP(row.markovP)}
                   </span>
                 </div>
               ))}
@@ -695,7 +695,7 @@ export default function App() {
           )}
 
           <p className="note">
-            Every market is tested for digit uniformity, streakiness and digit-to-digit dependence, then ranked worst-first. <strong>A market is only flagged if it beats a Bonferroni-corrected threshold of p &lt; {scan ? (scan.alpha).toFixed(4) : '0.0050'}</strong> \u2014 scanning {symbols.length} markets at once means raw p &lt; 0.05 readings appear constantly by pure chance, and treating those as \u201csignals\u201d is exactly how a scanner manufactures confidence it hasn\u2019t earned. Verified against injected dependence: the rigged market ranks first and is flagged, while fair markets showing raw p &lt; 0.05 correctly are not.
+            Every market is tested for digit uniformity, streakiness and digit-to-digit dependence, then ranked worst-first. <strong>A market is only flagged if it beats a Bonferroni-corrected threshold of p &lt; {scan ? (scan.alpha).toFixed(4) : '0.0050'}</strong> — scanning {symbols.length} markets at once means raw p &lt; 0.05 readings appear constantly by pure chance, and treating those as “signals” is exactly how a scanner manufactures confidence it hasn’t earned. Verified against injected dependence: the rigged market ranks first and is flagged, while fair markets showing raw p &lt; 0.05 correctly are not.
           </p>
         </section>
 
@@ -818,7 +818,7 @@ export default function App() {
 }
 
 function fmtP(p) {
-  if (!Number.isFinite(p)) return '\u2014';
+  if (!Number.isFinite(p)) return '—';
   return p < 0.001 ? p.toExponential(1) : p.toFixed(3);
 }
 
