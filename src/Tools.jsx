@@ -128,8 +128,24 @@ function AnalysisTab({ digits }) {
         <div className="stat"><b>{run.current}</b><span>current streak</span></div>
         <div className="stat"><b>{run.longest}</b><span>longest streak</span></div>
         <div className="stat"><b>{parity.pEven === null ? '—' : `${(parity.pEven * 100).toFixed(1)}%`}</b><span>even / 50.0%</span></div>
+        <div className="stat"><b>{parity.pEven === null ? '—' : `${((1 - parity.pEven) * 100).toFixed(1)}%`}</b><span>odd / 50.0%</span></div>
         <div className="stat"><b>{digits.length}</b><span>sample</span></div>
       </div>
+
+      <div className="bars" style={{ marginTop: 18, height: 110 }}>
+        {cells.map((cell) => (
+          <div key={cell.digit} className="bar">
+            <div className="fill" style={{ height: `${Math.min(100, cell.share * 700)}%` }} />
+            <span>{cell.digit}</span>
+          </div>
+        ))}
+      </div>
+      <p className="expected-line">Matches pays on one digit in ten; every bar is measured against that same 10%</p>
+      <p className="note">
+        Matches wins at 10% and Differs at 90%, fixed by the contract. Even/Odd sits at 50%.{' '}
+        <strong>These are not estimates that drift — they are the definition of the contract, and the
+        observed bars converge onto them.</strong>
+      </p>
 
       <div className="barrier-row">
         <span className="micro">Barrier digit</span>
